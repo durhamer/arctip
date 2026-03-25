@@ -1,39 +1,31 @@
 // ArcTip popup script — Manifest V3 / ES module
-// Relies on window.ethereum (MetaMask or compatible)
+// window.ethereum is NOT available in extension popups.
+// All Ethereum calls are routed through:
+//   popup -> background.js -> bridge.js (isolated) -> ethereum_bridge.js (MAIN) -> MetaMask
 
-const ARC_CHAIN_ID = "0x4CE4F2"; // 5042002 decimal
-const ARC_CHAIN_ID_DEC = 5042002;
-const ARC_RPC = "https://rpc.testnet.arc.network";
+const ARC_CHAIN_ID = "0x4CEF52"; // 5042002 decimal
+
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 const USDC_DECIMALS = 6;
 
-// Filled after deployment — override via storage if needed
 const DEFAULT_REGISTRY = "";
 const DEFAULT_TIPJAR = "";
 
-// Minimal ABIs (function signatures only)
-const USDC_ABI = [
-  "function balanceOf(address) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)",
-];
-const REGISTRY_ABI = [
-  "function isRegistered(address) view returns (bool)",
-  "function getAddressByHandle(string) view returns (address)",
-  "function register(string handle, string url)",
-];
-const TIPJAR_ABI = [
-  "function tip(address creator, uint256 amount, string message)",
-  "function previewTip(uint256 amount) view returns (uint256 creatorAmount, uint256 fee)",
-  "function feeBps() view returns (uint256)",
-];
+// ── Selectors (tiny keccak lookup) ────────────────────────────────────────
+
+const SELECTORS = {
+  "balanceOf(address)": "0x70a08231",
+  "approve(address,uint256)": "0x095ea7b3",
+  "isRegistered(address)": "0x15e40de4",
+  "getAddressByHandle(string)": "0xb5be4b16",
+  "register(string,string)": "0x7d0b2eff",
+  "tip(address,uint256,string)": "0xf0350c04",
+  "previewTip(uint256)": "0x54eef2ef",
+  "feeBps()": "0xb33d2e26",
+};
 
 // ── State ──────────────────────────────────────────────────────────────────
 
-let provider = null;
-let signer = null;
-let usdcContract = null;
-let registryContract = null;
-let tipJarContract = null;
 let walletAddress = null;
 let contractAddresses = { registry: DEFAULT_REGISTRY, tipjar: DEFAULT_TIPJAR };
 
@@ -64,6 +56,31 @@ const ui = {
   btnRegister: $("btn-register"),
 };
 
+// ── Ethereum bridge ────────────────────────────────────────────────────────
+// Routes requests through: background.js → content/bridge.js → inject/ethereum_bridge.js
+
+function ethRequest(method, params = []) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: "ARCTIP_ETH", method, params }, (resp) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!resp) {
+        reject(new Error("No response from bridge. Refresh the active tab and try again."));
+        return;
+      }
+      if (resp.error !== undefined) {
+        const err = new Error(resp.error);
+        if (resp.code !== undefined) err.code = resp.code;
+        reject(err);
+        return;
+      }
+      resolve(resp.result);
+    });
+  });
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function formatUsdc(raw) {
@@ -84,49 +101,17 @@ function hideStatus() {
   ui.status.classList.add("hidden");
 }
 
-// Minimal ethers-like encoding — use raw eth_call / eth_sendTransaction
-// We use the injected provider directly via EIP-1193 to avoid bundling ethers.
-async function ethCall(to, sig, params) {
-  const data = encodeCall(sig, params);
-  const result = await window.ethereum.request({
-    method: "eth_call",
-    params: [{ to, data }, "latest"],
-  });
-  return result;
-}
-
-// Very small ABI encoder for the signatures we need
-function encodeCall(sig, args) {
-  const selector = keccak256Selector(sig);
-  if (!args || args.length === 0) return selector;
-  return selector + encodeArgs(sig, args);
-}
-
-// We embed a tiny keccak256 selector lookup via known sigs
-const SELECTORS = {
-  "balanceOf(address)": "0x70a08231",
-  "approve(address,uint256)": "0x095ea7b3",
-  "isRegistered(address)": "0x15e40de4",
-  "getAddressByHandle(string)": "0xb5be4b16",
-  "register(string,string)": "0x7d0b2eff",
-  "tip(address,uint256,string)": "0xf0350c04",
-  "previewTip(uint256)": "0x54eef2ef",
-  "feeBps()": "0xb33d2e26",
-};
-
-function keccak256Selector(sig) {
-  const name = sig.split("(")[0];
-  const found = Object.keys(SELECTORS).find((k) => k.startsWith(name + "("));
-  if (found) return SELECTORS[found];
-  throw new Error(`Unknown selector for: ${sig}`);
-}
-
 function padLeft(hex, bytes) {
   return hex.replace("0x", "").padStart(bytes * 2, "0");
 }
 
+function keccak256Selector(sig) {
+  const found = Object.keys(SELECTORS).find((k) => k.startsWith(sig.split("(")[0] + "("));
+  if (found) return SELECTORS[found];
+  throw new Error(`Unknown selector for: ${sig}`);
+}
+
 function encodeArgs(sig, args) {
-  // Only handles the types we use: address, uint256, string, string+string, address+uint256+string
   const types = sig
     .slice(sig.indexOf("(") + 1, sig.lastIndexOf(")"))
     .split(",")
@@ -134,7 +119,7 @@ function encodeArgs(sig, args) {
 
   let head = "";
   let tail = "";
-  let headSize = types.length * 32;
+  const headSize = types.length * 32;
 
   types.forEach((type, i) => {
     if (type === "address") {
@@ -149,13 +134,18 @@ function encodeArgs(sig, args) {
       let dataHex = Array.from(bytes)
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
-      // Pad to 32-byte boundary
       const padded = dataHex.padEnd(Math.ceil(dataHex.length / 64) * 64, "0");
       tail += lenHex + padded;
     }
   });
 
   return head + tail;
+}
+
+function encodeCall(sig, args) {
+  const selector = keccak256Selector(sig);
+  if (!args || args.length === 0) return selector;
+  return selector + encodeArgs(sig, args);
 }
 
 function decodeUint256(hex) {
@@ -166,27 +156,28 @@ function decodeAddress(hex) {
   return "0x" + hex.slice(-40);
 }
 
-function decodeBool(hex) {
-  return BigInt(hex) !== 0n;
+async function ethCall(to, sig, params) {
+  const data = encodeCall(sig, params);
+  return ethRequest("eth_call", [{ to, data }, "latest"]);
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
 
 async function init() {
-  // Load stored contract addresses
   const stored = await chrome.storage.local.get(["registry", "tipjar"]);
   if (stored.registry) contractAddresses.registry = stored.registry;
   if (stored.tipjar) contractAddresses.tipjar = stored.tipjar;
 
   setupEventListeners();
 
-  if (window.ethereum) {
-    const accounts = await window.ethereum.request({ method: "eth_accounts" });
-    if (accounts.length > 0) {
+  // Attempt silent reconnect if already connected
+  try {
+    const accounts = await ethRequest("eth_accounts");
+    if (accounts && accounts.length > 0) {
       await connectWallet();
     }
-    window.ethereum.on("accountsChanged", () => location.reload());
-    window.ethereum.on("chainChanged", () => location.reload());
+  } catch (_) {
+    // Not connected yet or bridge not ready — stay in disconnected state
   }
 }
 
@@ -194,14 +185,13 @@ async function init() {
 
 async function connectWallet() {
   try {
-    if (!window.ethereum) throw new Error("MetaMask not detected");
-
     showStatus("Connecting…");
-    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+
+    const accounts = await ethRequest("eth_requestAccounts");
     walletAddress = accounts[0];
 
     // Ensure Arc Testnet
-    const chainId = await window.ethereum.request({ method: "eth_chainId" });
+    const chainId = await ethRequest("eth_chainId");
     if (chainId.toLowerCase() !== ARC_CHAIN_ID.toLowerCase()) {
       await switchToArcTestnet();
     }
@@ -220,24 +210,18 @@ async function connectWallet() {
 
 async function switchToArcTestnet() {
   try {
-    await window.ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: ARC_CHAIN_ID }],
-    });
+    await ethRequest("wallet_switchEthereumChain", [{ chainId: ARC_CHAIN_ID }]);
   } catch (switchError) {
     if (switchError.code === 4902) {
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [
-          {
-            chainId: ARC_CHAIN_ID,
-            chainName: "Arc Testnet",
-            nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 },
-            rpcUrls: [ARC_RPC],
-            blockExplorerUrls: ["https://testnet.arcscan.app"],
-          },
-        ],
-      });
+      await ethRequest("wallet_addEthereumChain", [
+        {
+          chainId: ARC_CHAIN_ID,
+          chainName: "Arc Testnet",
+          nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+          rpcUrls: ["https://rpc.testnet.arc.network"],
+          blockExplorerUrls: ["https://testnet.arcscan.app"],
+        },
+      ]);
     } else {
       throw switchError;
     }
@@ -247,8 +231,7 @@ async function switchToArcTestnet() {
 async function refreshBalance() {
   if (!walletAddress) return;
   const raw = await ethCall(USDC_ADDRESS, "balanceOf(address)", [walletAddress]);
-  const balance = decodeUint256(raw);
-  ui.usdcBalance.textContent = formatUsdc(balance);
+  ui.usdcBalance.textContent = formatUsdc(decodeUint256(raw));
 }
 
 // ── Tip ────────────────────────────────────────────────────────────────────
@@ -256,8 +239,6 @@ async function refreshBalance() {
 async function resolveCreator(input) {
   const trimmed = input.trim();
   if (trimmed.startsWith("0x")) return trimmed;
-
-  // Treat as handle — lookup via registry
   if (!contractAddresses.registry) throw new Error("Registry address not configured");
   const raw = await ethCall(contractAddresses.registry, "getAddressByHandle(string)", [trimmed]);
   const addr = decodeAddress(raw);
@@ -290,32 +271,26 @@ async function sendTip() {
     const amount = parseUsdc(amountStr);
 
     // Step 1: approve
-    showStatus("Approving USDC…");
-    const approveTx = await window.ethereum.request({
-      method: "eth_sendTransaction",
-      params: [
-        {
-          from: walletAddress,
-          to: USDC_ADDRESS,
-          data: encodeCall("approve(address,uint256)", [contractAddresses.tipjar, amount]),
-        },
-      ],
-    });
+    showStatus("Approving USDC… (check MetaMask)");
+    const approveTx = await ethRequest("eth_sendTransaction", [
+      {
+        from: walletAddress,
+        to: USDC_ADDRESS,
+        data: encodeCall("approve(address,uint256)", [contractAddresses.tipjar, amount]),
+      },
+    ]);
     showStatus(`Approve tx: ${approveTx.slice(0, 10)}… waiting`);
     await waitForTx(approveTx);
 
     // Step 2: tip
-    showStatus("Sending tip…");
-    const tipTx = await window.ethereum.request({
-      method: "eth_sendTransaction",
-      params: [
-        {
-          from: walletAddress,
-          to: contractAddresses.tipjar,
-          data: encodeCall("tip(address,uint256,string)", [creatorAddr, amount, message]),
-        },
-      ],
-    });
+    showStatus("Sending tip… (check MetaMask)");
+    const tipTx = await ethRequest("eth_sendTransaction", [
+      {
+        from: walletAddress,
+        to: contractAddresses.tipjar,
+        data: encodeCall("tip(address,uint256,string)", [creatorAddr, amount, message]),
+      },
+    ]);
     await waitForTx(tipTx);
 
     showStatus(`Tip sent! Tx: ${tipTx}`, "success");
@@ -332,10 +307,7 @@ async function sendTip() {
 
 async function waitForTx(txHash, maxAttempts = 30) {
   for (let i = 0; i < maxAttempts; i++) {
-    const receipt = await window.ethereum.request({
-      method: "eth_getTransactionReceipt",
-      params: [txHash],
-    });
+    const receipt = await ethRequest("eth_getTransactionReceipt", [txHash]);
     if (receipt) return receipt;
     await new Promise((r) => setTimeout(r, 1500));
   }
@@ -357,17 +329,14 @@ async function registerCreator() {
   }
   try {
     ui.btnRegister.disabled = true;
-    showStatus("Registering…");
-    const txHash = await window.ethereum.request({
-      method: "eth_sendTransaction",
-      params: [
-        {
-          from: walletAddress,
-          to: contractAddresses.registry,
-          data: encodeCall("register(string,string)", [handle, url]),
-        },
-      ],
-    });
+    showStatus("Registering… (check MetaMask)");
+    const txHash = await ethRequest("eth_sendTransaction", [
+      {
+        from: walletAddress,
+        to: contractAddresses.registry,
+        data: encodeCall("register(string,string)", [handle, url]),
+      },
+    ]);
     await waitForTx(txHash);
     showStatus("Registered! Tx: " + txHash, "success");
     ui.regHandle.value = "";
@@ -396,7 +365,6 @@ async function updatePreview() {
   try {
     const amount = parseUsdc(amountStr);
     const raw = await ethCall(contractAddresses.tipjar, "previewTip(uint256)", [amount]);
-    // Returns (uint256 creatorAmount, uint256 fee) = 64 bytes
     const creatorAmount = BigInt("0x" + raw.replace("0x", "").slice(0, 64));
     const fee = BigInt("0x" + raw.replace("0x", "").slice(64, 128));
     ui.previewNet.textContent = formatUsdc(creatorAmount);
@@ -414,7 +382,7 @@ function showSection(name) {
   const navBtns = { tip: ui.navTip, register: ui.navRegister };
 
   Object.entries(sections).forEach(([k, el]) => {
-    if (!walletAddress && k !== "tip") return; // guard
+    if (!walletAddress && k !== "tip") return;
     el.classList.toggle("hidden", k !== name);
   });
   Object.entries(navBtns).forEach(([k, btn]) => {
@@ -430,7 +398,6 @@ function setupEventListeners() {
   ui.btnRegister.addEventListener("click", registerCreator);
   ui.inputAmount.addEventListener("input", updatePreview);
 
-  // Quick amount buttons
   document.querySelectorAll("[data-amount]").forEach((btn) => {
     btn.addEventListener("click", () => {
       ui.inputAmount.value = btn.dataset.amount;
