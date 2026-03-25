@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ArcTip — Creator Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface-2: #232638;
+      --border: #2e3248;
+      --accent: #6c63ff;
+      --accent-hover: #7c74ff;
+      --success: #22c55e;
+      --error: #ef4444;
+      --text: #e8eaf0;
+      --text-muted: #8890a8;
+      --radius: 12px;
+      --max-w: 900px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    nav {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: var(--max-w);
+      margin: 0 auto;
+    }
+    .nav-logo { font-size: 20px; font-weight: 700; }
+    .badge {
+      font-size: 11px; font-weight: 600; padding: 3px 10px;
+      border-radius: 99px; text-transform: uppercase; letter-spacing: 0.5px;
+      background: rgba(108,99,255,0.15); color: var(--accent);
+      border: 1px solid rgba(108,99,255,0.3);
+    }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    #wallet-addr {
+      font-family: monospace; font-size: 12px; color: var(--text-muted);
+    }
+
+    /* ── Layout ── */
+    .container { max-width: var(--max-w); margin: 0 auto; padding: 32px 24px; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .card-title {
+      font-size: 12px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px;
+    }
+
+    /* ── Stats ── */
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 640px) { .stats { grid-template-columns: 1fr 1fr; } }
+    .stat {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+    }
+    .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+    .stat-value.green { color: var(--success); }
+    .stat-value.purple { color: var(--accent); }
+
+    /* ── Form ── */
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block; font-size: 11px; font-weight: 500;
+      color: var(--text-muted); margin-bottom: 5px;
+    }
+    input[type="text"], input[type="url"], input[type="number"] {
+      width: 100%; background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); padding: 9px 12px; font-size: 13px;
+      outline: none; transition: border-color 0.15s; font-family: inherit;
+    }
+    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--text-muted); opacity: 0.7; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      border: none; border-radius: 8px; cursor: pointer; font-family: inherit;
+      font-weight: 600; transition: background 0.15s, opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn--primary {
+      background: var(--accent); color: #fff; padding: 10px 20px; font-size: 13px;
+    }
+    .btn--primary:not(:disabled):hover { background: var(--accent-hover); }
+    .btn--outline {
+      background: transparent; color: var(--text-muted); padding: 8px 16px; font-size: 13px;
+      border: 1px solid var(--border);
+    }
+    .btn--outline:hover { color: var(--text); border-color: var(--text-muted); }
+    .btn--full { width: 100%; }
+    .btn--connect {
+      background: var(--accent); color: #fff; padding: 10px 20px; font-size: 13px;
+    }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left; padding: 10px 12px; font-size: 11px; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border);
+    }
+    td { padding: 12px 12px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface-2); }
+    .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; }
+    .amount-cell { color: var(--success); font-weight: 600; }
+    a.tx-link { color: var(--accent); text-decoration: none; }
+    a.tx-link:hover { text-decoration: underline; }
+
+    /* ── Status ── */
+    .status-bar {
+      padding: 10px 14px; border-radius: 8px; font-size: 12px;
+      margin-bottom: 14px; display: none;
+    }
+    .status-bar.show { display: block; }
+    .status-bar.success { background: rgba(34,197,94,0.1); color: var(--success); border: 1px solid rgba(34,197,94,0.25); }
+    .status-bar.error   { background: rgba(239,68,68,0.1);  color: var(--error);   border: 1px solid rgba(239,68,68,0.25); }
+    .status-bar.loading { background: rgba(108,99,255,0.1); color: var(--accent);  border: 1px solid rgba(108,99,255,0.25); }
+
+    /* ── Connect screen ── */
+    #screen-connect {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 60vh; text-align: center; gap: 16px;
+    }
+    #screen-connect h1 { font-size: 32px; font-weight: 700; }
+    #screen-connect p { color: var(--text-muted); max-width: 400px; }
+
+    #screen-dashboard { display: none; }
+
+    /* ── Registration status ── */
+    .reg-status {
+      display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+      border-radius: 8px; margin-bottom: 14px; font-size: 13px;
+    }
+    .reg-status.registered {
+      background: rgba(34,197,94,0.1); color: var(--success); border: 1px solid rgba(34,197,94,0.25);
+    }
+    .reg-status.unregistered {
+      background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25);
+    }
+
+    .empty-state {
+      text-align: center; padding: 32px; color: var(--text-muted); font-size: 13px;
+    }
+
+    /* ── Contract config ── */
+    .config-row { display: flex; gap: 8px; align-items: flex-end; }
+    .config-row .field { flex: 1; margin-bottom: 0; }
+
+    section + section { margin-top: 24px; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">⚡ ArcTip Dashboard</div>
+  <div class="nav-right">
+    <span class="badge">Arc Testnet</span>
+    <span id="wallet-addr">Not connected</span>
+    <button id="btn-connect" class="btn btn--connect">Connect Wallet</button>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Connect screen -->
+  <div id="screen-connect">
+    <div style="font-size:48px;">⚡</div>
+    <h1>ArcTip Dashboard</h1>
+    <p>Connect your wallet to view your tip earnings, register as a creator, and manage your profile on Arc Testnet.</p>
+    <button id="btn-connect-hero" class="btn btn--primary" style="font-size:15px;padding:12px 32px;">
+      Connect Wallet
+    </button>
+  </div>
+
+  <!-- Dashboard screen -->
+  <div id="screen-dashboard">
+
+    <!-- Stats row -->
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Total Received</div>
+        <div id="stat-received" class="stat-value green">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total Sent</div>
+        <div id="stat-sent" class="stat-value purple">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">USDC Balance</div>
+        <div id="stat-balance" class="stat-value">—</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+
+      <!-- Left column: Profile + Tip form -->
+      <div>
+        <!-- Creator profile card -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title">Creator Profile</div>
+          <div id="reg-status-bar" class="reg-status unregistered">
+            ⚠ Not registered as creator
+          </div>
+          <div id="status-profile" class="status-bar"></div>
+          <div class="field">
+            <label>Handle</label>
+            <input id="reg-handle" type="text" placeholder="@yourhandle" />
+          </div>
+          <div class="field">
+            <label>Profile URL</label>
+            <input id="reg-url" type="url" placeholder="https://twitter.com/you" />
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button id="btn-register" class="btn btn--primary" style="flex:1;">Register / Update</button>
+            <button id="btn-unregister" class="btn btn--outline">Unregister</button>
+          </div>
+        </div>
+
+        <!-- Send tip card -->
+        <div class="card">
+          <div class="card-title">Send a Tip</div>
+          <div id="status-tip" class="status-bar"></div>
+          <div class="field">
+            <label>Creator Address or Handle</label>
+            <input id="tip-creator" type="text" placeholder="0x… or @handle" />
+          </div>
+          <div class="field">
+            <label>Amount (USDC)</label>
+            <input id="tip-amount" type="number" placeholder="1.00" min="0.1" step="0.1" />
+          </div>
+          <div class="field">
+            <label>Message (optional)</label>
+            <input id="tip-msg" type="text" placeholder="Love your work!" maxlength="280" />
+          </div>
+          <button id="btn-tip" class="btn btn--primary btn--full">Send Tip</button>
+        </div>
+      </div>
+
+      <!-- Right column: Tip history + Config -->
+      <div>
+        <!-- Tip history -->
+        <div class="card" style="margin-bottom:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <div class="card-title" style="margin-bottom:0;">Tips Received</div>
+            <button id="btn-refresh" class="btn btn--outline" style="font-size:11px;padding:5px 10px;">
+              ↻ Refresh
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>Amount</th>
+                  <th>Message</th>
+                  <th>Tx</th>
+                </tr>
+              </thead>
+              <tbody id="tips-table-body">
+                <tr><td colspan="4"><div class="empty-state">Connect wallet to load tips</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Contract config -->
+        <div class="card">
+          <div class="card-title">Contract Addresses</div>
+          <div class="field">
+            <label>TipJar</label>
+            <input id="cfg-tipjar" type="text" placeholder="0x…" />
+          </div>
+          <div class="field">
+            <label>CreatorRegistry</label>
+            <input id="cfg-registry" type="text" placeholder="0x…" />
+          </div>
+          <button id="btn-save-config" class="btn btn--outline btn--full" style="font-size:12px;">
+            Save Configuration
+          </button>
+          <div style="margin-top:8px;font-size:11px;color:var(--text-muted);">
+            Fill these in after running <code>make deploy</code>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+
+const ARC_CHAIN_ID_HEX = "0x4CE4F2";
+const ARC_CHAIN_ID = 5042002;
+const ARC_RPC = "https://rpc.testnet.arc.network";
+const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+const USDC_DECIMALS = 6;
+const ARCSCAN = "https://testnet.arcscan.app";
+
+let walletAddress = null;
+let contracts = { tipjar: "", registry: "" };
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const $ = (id) => document.getElementById(id);
+
+function formatUsdc(raw) {
+  return (Number(BigInt(raw)) / 1e6).toFixed(2) + " USDC";
+}
+function parseUsdc(v) {
+  return BigInt(Math.round(parseFloat(v) * 1e6));
+}
+function shortAddr(addr) {
+  return addr.slice(0, 6) + "…" + addr.slice(-4);
+}
+function padLeft(hex, bytes) {
+  return hex.replace("0x", "").padStart(bytes * 2, "0");
+}
+
+// Tiny ABI encoder (same approach as popup.js)
+const SELECTORS = {
+  "balanceOf(address)": "0x70a08231",
+  "approve(address,uint256)": "0x095ea7b3",
+  "isRegistered(address)": "0x15e40de4",
+  "getAddressByHandle(string)": "0xb5be4b16",
+  "getCreator(address)": "0x47f5e7d0",
+  "register(string,string)": "0x7d0b2eff",
+  "unregister()": "0x6598a1ae",
+  "tip(address,uint256,string)": "0xf0350c04",
+  "totalTipsReceived(address)": "0x43dacc49",
+  "totalTipsSent(address)": "0x2fe3c55e",
+  "previewTip(uint256)": "0x54eef2ef",
+};
+
+function encodeCall(sig, args = []) {
+  const name = sig.split("(")[0];
+  const found = Object.keys(SELECTORS).find((k) => k.startsWith(name + "("));
+  const selector = SELECTORS[found || sig];
+  if (!args.length) return selector;
+
+  const types = sig.slice(sig.indexOf("(") + 1, sig.lastIndexOf(")")).split(",").map(t => t.trim());
+  let head = "", tail = "", headSize = types.length * 32;
+
+  types.forEach((type, i) => {
+    if (type === "address") {
+      head += padLeft(args[i].toLowerCase(), 32);
+    } else if (type === "uint256") {
+      head += padLeft(BigInt(args[i]).toString(16), 32);
+    } else if (type === "string") {
+      const offset = headSize + tail.length / 2;
+      head += padLeft(offset.toString(16), 32);
+      const bytes = new TextEncoder().encode(String(args[i]));
+      const lenHex = padLeft(bytes.length.toString(16), 32);
+      const dataHex = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+      tail += lenHex + dataHex.padEnd(Math.ceil(dataHex.length / 64) * 64, "0");
+    }
+  });
+  return selector + head + tail;
+}
+
+async function ethCall(to, sig, args = []) {
+  return await window.ethereum.request({
+    method: "eth_call",
+    params: [{ to, data: encodeCall(sig, args) }, "latest"],
+  });
+}
+
+async function sendTx(to, sig, args = []) {
+  return await window.ethereum.request({
+    method: "eth_sendTransaction",
+    params: [{ from: walletAddress, to, data: encodeCall(sig, args) }],
+  });
+}
+
+async function waitForReceipt(txHash) {
+  for (let i = 0; i < 40; i++) {
+    const r = await window.ethereum.request({ method: "eth_getTransactionReceipt", params: [txHash] });
+    if (r) return r;
+    await new Promise(ok => setTimeout(ok, 1500));
+  }
+  throw new Error("Tx timeout");
+}
+
+function showStatus(elId, msg, type) {
+  const el = $(elId);
+  el.textContent = msg;
+  el.className = `status-bar show ${type}`;
+}
+function hideStatus(elId) {
+  $(elId).className = "status-bar";
+}
+
+// ── Load config from localStorage ────────────────────────────────────────────
+
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("arctip_contracts") || "{}");
+    contracts.tipjar = saved.tipjar || "";
+    contracts.registry = saved.registry || "";
+    $("cfg-tipjar").value = contracts.tipjar;
+    $("cfg-registry").value = contracts.registry;
+  } catch (_) {}
+}
+
+function saveConfig() {
+  contracts.tipjar = $("cfg-tipjar").value.trim();
+  contracts.registry = $("cfg-registry").value.trim();
+  localStorage.setItem("arctip_contracts", JSON.stringify(contracts));
+  showStatus("status-profile", "Configuration saved", "success");
+  setTimeout(() => hideStatus("status-profile"), 2000);
+}
+
+// ── Wallet ────────────────────────────────────────────────────────────────────
+
+async function connectWallet() {
+  if (!window.ethereum) {
+    alert("MetaMask not detected. Install MetaMask to use ArcTip.");
+    return;
+  }
+  const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+  walletAddress = accounts[0];
+
+  const chainId = await window.ethereum.request({ method: "eth_chainId" });
+  if (chainId.toLowerCase() !== ARC_CHAIN_ID_HEX.toLowerCase()) {
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: ARC_CHAIN_ID_HEX }],
+      });
+    } catch (e) {
+      if (e.code === 4902) {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [{
+            chainId: ARC_CHAIN_ID_HEX,
+            chainName: "Arc Testnet",
+            nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 },
+            rpcUrls: [ARC_RPC],
+            blockExplorerUrls: [ARCSCAN],
+          }],
+        });
+      }
+    }
+  }
+
+  $("wallet-addr").textContent = shortAddr(walletAddress);
+  $("btn-connect").textContent = shortAddr(walletAddress);
+  $("screen-connect").style.display = "none";
+  $("screen-dashboard").style.display = "block";
+
+  await Promise.all([loadStats(), loadCreatorProfile(), loadTipHistory()]);
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
+async function loadStats() {
+  try {
+    const [balRaw, receivedRaw, sentRaw] = await Promise.all([
+      ethCall(USDC_ADDRESS, "balanceOf(address)", [walletAddress]),
+      contracts.tipjar
+        ? ethCall(contracts.tipjar, "totalTipsReceived(address)", [walletAddress])
+        : Promise.resolve("0x0"),
+      contracts.tipjar
+        ? ethCall(contracts.tipjar, "totalTipsSent(address)", [walletAddress])
+        : Promise.resolve("0x0"),
+    ]);
+    $("stat-balance").textContent = formatUsdc(balRaw);
+    $("stat-received").textContent = formatUsdc(receivedRaw);
+    $("stat-sent").textContent = formatUsdc(sentRaw);
+  } catch (e) {
+    console.error("loadStats", e);
+  }
+}
+
+// ── Creator profile ───────────────────────────────────────────────────────────
+
+async function loadCreatorProfile() {
+  if (!contracts.registry) return;
+  try {
+    const raw = await ethCall(contracts.registry, "isRegistered(address)", [walletAddress]);
+    const isReg = BigInt(raw) !== 0n;
+    const bar = $("reg-status-bar");
+    if (isReg) {
+      bar.className = "reg-status registered";
+      bar.textContent = "✓ Registered as creator";
+    } else {
+      bar.className = "reg-status unregistered";
+      bar.textContent = "⚠ Not registered as creator";
+    }
+  } catch (e) {
+    console.error("loadCreatorProfile", e);
+  }
+}
+
+async function registerCreator() {
+  if (!contracts.registry) { showStatus("status-profile", "Registry address not set", "error"); return; }
+  const handle = $("reg-handle").value.trim();
+  const url = $("reg-url").value.trim();
+  if (!handle || !url) { showStatus("status-profile", "Enter handle and URL", "error"); return; }
+
+  try {
+    $("btn-register").disabled = true;
+    showStatus("status-profile", "Sending registration transaction…", "loading");
+    const txHash = await sendTx(contracts.registry, "register(string,string)", [handle, url]);
+    await waitForReceipt(txHash);
+    showStatus("status-profile", `Registered! Tx: ${txHash}`, "success");
+    await loadCreatorProfile();
+  } catch (e) {
+    showStatus("status-profile", e.message, "error");
+  } finally {
+    $("btn-register").disabled = false;
+  }
+}
+
+async function unregisterCreator() {
+  if (!contracts.registry) return;
+  if (!confirm("Unregister your creator profile?")) return;
+  try {
+    const txHash = await sendTx(contracts.registry, "unregister()", []);
+    showStatus("status-profile", "Unregistering… Tx: " + txHash, "loading");
+    await waitForReceipt(txHash);
+    showStatus("status-profile", "Unregistered", "success");
+    await loadCreatorProfile();
+  } catch (e) {
+    showStatus("status-profile", e.message, "error");
+  }
+}
+
+// ── Send tip ──────────────────────────────────────────────────────────────────
+
+async function resolveCreator(input) {
+  if (input.startsWith("0x")) return input.trim();
+  if (!contracts.registry) throw new Error("Registry not configured");
+  const raw = await ethCall(contracts.registry, "getAddressByHandle(string)", [input.trim()]);
+  const addr = "0x" + raw.slice(-40);
+  if (addr === "0x0000000000000000000000000000000000000000") {
+    throw new Error(`Handle "${input}" not found`);
+  }
+  return addr;
+}
+
+async function sendTip() {
+  if (!contracts.tipjar) { showStatus("status-tip", "TipJar address not set", "error"); return; }
+  const creatorInput = $("tip-creator").value.trim();
+  const amountStr = $("tip-amount").value.trim();
+  const msg = $("tip-msg").value.trim();
+  if (!creatorInput || !amountStr) { showStatus("status-tip", "Fill in creator and amount", "error"); return; }
+
+  try {
+    $("btn-tip").disabled = true;
+    showStatus("status-tip", "Resolving creator…", "loading");
+    const creatorAddr = await resolveCreator(creatorInput);
+    const amount = parseUsdc(amountStr);
+
+    showStatus("status-tip", "Approving USDC…", "loading");
+    const approveTx = await sendTx(USDC_ADDRESS, "approve(address,uint256)", [contracts.tipjar, amount]);
+    await waitForReceipt(approveTx);
+
+    showStatus("status-tip", "Sending tip…", "loading");
+    const tipTx = await sendTx(contracts.tipjar, "tip(address,uint256,string)", [creatorAddr, amount, msg]);
+    await waitForReceipt(tipTx);
+
+    showStatus("status-tip", `Tip sent! Tx: ${tipTx}`, "success");
+    $("tip-creator").value = "";
+    $("tip-amount").value = "";
+    $("tip-msg").value = "";
+    await loadStats();
+  } catch (e) {
+    showStatus("status-tip", e.message, "error");
+  } finally {
+    $("btn-tip").disabled = false;
+  }
+}
+
+// ── Tip history (from events) ─────────────────────────────────────────────────
+
+async function loadTipHistory() {
+  if (!contracts.tipjar) return;
+
+  const tbody = $("tips-table-body");
+  tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state">Loading…</div></td></tr>`;
+
+  try {
+    // TipSent(address indexed tipper, address indexed creator, uint256 amount, uint256 fee, string message)
+    const TIP_SENT_TOPIC = "0x" + await sha256Hex("TipSent(address,address,uint256,uint256,string)");
+
+    const creatorTopic = "0x" + walletAddress.slice(2).padStart(64, "0");
+
+    const logs = await window.ethereum.request({
+      method: "eth_getLogs",
+      params: [{
+        address: contracts.tipjar,
+        topics: [null, null, creatorTopic], // topic[2] = creator
+        fromBlock: "0x0",
+        toBlock: "latest",
+      }],
+    });
+
+    if (!logs || logs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state">No tips received yet</div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = logs.slice(-20).reverse().map((log) => {
+      const tipper = "0x" + log.topics[1].slice(26);
+      const amountHex = log.data.slice(2, 66);
+      const amount = BigInt("0x" + amountHex);
+      const txHash = log.transactionHash;
+      return `
+        <tr>
+          <td class="mono">${shortAddr(tipper)}</td>
+          <td class="amount-cell">${formatUsdc(amount)}</td>
+          <td style="color:var(--text-muted);">—</td>
+          <td><a href="${ARCSCAN}/tx/${txHash}" target="_blank" class="tx-link mono">${txHash.slice(0,10)}…</a></td>
+        </tr>`;
+    }).join("");
+  } catch (e) {
+    console.error("loadTipHistory", e);
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state" style="color:var(--error)">
+      Could not load tips: ${e.message}</div></td></tr>`;
+  }
+}
+
+// Tiny keccak256-equivalent via WebCrypto (SHA-256 only, used as a placeholder selector)
+// NOTE: In production, use ethers.js or viem for correct keccak256 event topics.
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadConfig();
+
+  $("btn-connect").addEventListener("click", connectWallet);
+  $("btn-connect-hero").addEventListener("click", connectWallet);
+  $("btn-register").addEventListener("click", registerCreator);
+  $("btn-unregister").addEventListener("click", unregisterCreator);
+  $("btn-tip").addEventListener("click", sendTip);
+  $("btn-refresh").addEventListener("click", loadTipHistory);
+  $("btn-save-config").addEventListener("click", saveConfig);
+
+  if (window.ethereum) {
+    window.ethereum.on("accountsChanged", () => location.reload());
+    window.ethereum.on("chainChanged", () => location.reload());
+
+    // Auto-connect if already authorized
+    window.ethereum.request({ method: "eth_accounts" }).then((accounts) => {
+      if (accounts.length > 0) connectWallet();
+    });
+  }
+});
+</script>
+</body>
+</html>

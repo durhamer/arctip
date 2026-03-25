@@ -1,0 +1,14 @@
+# Foundry
+out/
+cache/
+broadcast/
+
+# Environment
+.env
+
+# Node / dashboard build
+node_modules/
+dist/
+
+# macOS
+.DS_Store

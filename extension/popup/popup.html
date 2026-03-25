@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ArcTip</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header>
+      <div class="logo">⚡ ArcTip</div>
+      <div id="network-badge" class="badge badge--arc">Arc Testnet</div>
+    </header>
+
+    <!-- Wallet section -->
+    <section id="section-wallet">
+      <div id="wallet-disconnected">
+        <p class="hint">Connect your wallet to send USDC tips</p>
+        <button id="btn-connect" class="btn btn--primary btn--full">Connect Wallet</button>
+      </div>
+      <div id="wallet-connected" class="hidden">
+        <div class="wallet-row">
+          <span class="label">Wallet</span>
+          <span id="wallet-address" class="mono truncate"></span>
+        </div>
+        <div class="wallet-row">
+          <span class="label">USDC Balance</span>
+          <span id="usdc-balance" class="balance">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tip form -->
+    <section id="section-tip" class="hidden">
+      <h2 class="section-title">Send Tip</h2>
+      <div class="field">
+        <label for="input-creator">Creator Address or Handle</label>
+        <input id="input-creator" type="text" placeholder="0x… or @handle" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="input-amount">Amount (USDC)</label>
+        <div class="amount-row">
+          <input id="input-amount" type="number" placeholder="1.00" min="0.1" step="0.1" />
+          <div class="quick-amounts">
+            <button class="btn btn--ghost btn--sm" data-amount="1">$1</button>
+            <button class="btn btn--ghost btn--sm" data-amount="5">$5</button>
+            <button class="btn btn--ghost btn--sm" data-amount="10">$10</button>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="input-message">Message <span class="optional">(optional)</span></label>
+        <input id="input-message" type="text" placeholder="Love your content!" maxlength="280" />
+      </div>
+      <div id="tip-preview" class="preview hidden">
+        <div class="preview-row">
+          <span>Creator receives</span>
+          <span id="preview-net">—</span>
+        </div>
+        <div class="preview-row">
+          <span>Platform fee (1%)</span>
+          <span id="preview-fee">—</span>
+        </div>
+      </div>
+      <button id="btn-tip" class="btn btn--primary btn--full" disabled>Send Tip</button>
+    </section>
+
+    <!-- Status / tx feedback -->
+    <div id="status" class="status hidden"></div>
+
+    <!-- Footer nav -->
+    <footer>
+      <button id="nav-tip" class="nav-btn active">Tip</button>
+      <button id="nav-register" class="nav-btn">Register</button>
+    </footer>
+
+    <!-- Register section -->
+    <section id="section-register" class="hidden">
+      <h2 class="section-title">Register as Creator</h2>
+      <div class="field">
+        <label for="reg-handle">Handle</label>
+        <input id="reg-handle" type="text" placeholder="@yourhandle" />
+      </div>
+      <div class="field">
+        <label for="reg-url">Profile URL</label>
+        <input id="reg-url" type="url" placeholder="https://twitter.com/you" />
+      </div>
+      <button id="btn-register" class="btn btn--primary btn--full">Register</button>
+    </section>
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

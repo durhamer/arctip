@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "ArcTip — USDC Creator Tips",
+  "version": "0.1.0",
+  "description": "Send USDC tips to your favourite creators on Arc Testnet",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["https://twitter.com/*", "https://x.com/*", "https://youtube.com/*"],
+  "background": {
+    "service_worker": "background/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "ArcTip",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://twitter.com/*", "https://x.com/*", "https://youtube.com/*"],
+      "js": ["content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
