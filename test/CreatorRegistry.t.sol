@@ -22,6 +22,7 @@ contract CreatorRegistryTest is Test {
         assertEq(c.handle, "@alice");
         assertEq(c.url, "https://twitter.com/alice");
         assertTrue(c.registered);
+        assertEq(c.verificationLevel, 0); // starts unverified
     }
 
     function test_RegisterEmitsEvent() public {
@@ -67,6 +68,7 @@ contract CreatorRegistryTest is Test {
 
         CreatorRegistry.Creator memory c = registry.getCreator(alice);
         assertEq(c.handle, "@alice_v2");
+        assertEq(c.verificationLevel, 0); // re-register resets to unverified
 
         // Old handle should be freed
         assertEq(registry.getAddressByHandle("@alice"), address(0));
@@ -100,5 +102,62 @@ contract CreatorRegistryTest is Test {
         vm.prank(alice);
         vm.expectRevert(CreatorRegistry.EmptyUrl.selector);
         registry.register("@alice", "");
+    }
+
+    // ── Verification tests ───────────────────────────────────────────────────
+
+    function test_VerifyBio() public {
+        vm.prank(alice);
+        registry.register("@alice", "https://twitter.com/alice");
+        assertEq(registry.getVerificationLevel(alice), 0);
+
+        vm.prank(alice);
+        registry.verifyBio();
+        assertEq(registry.getVerificationLevel(alice), 1);
+    }
+
+    function test_VerifyBioEmitsEvent() public {
+        vm.prank(alice);
+        registry.register("@alice", "https://twitter.com/alice");
+
+        vm.expectEmit(true, false, false, true);
+        emit CreatorRegistry.CreatorVerified(alice, 1);
+
+        vm.prank(alice);
+        registry.verifyBio();
+    }
+
+    function test_VerifyBioNotRegistered() public {
+        vm.prank(alice);
+        vm.expectRevert(CreatorRegistry.NotRegistered.selector);
+        registry.verifyBio();
+    }
+
+    function test_VerifyBioAlreadyVerified() public {
+        vm.prank(alice);
+        registry.register("@alice", "https://twitter.com/alice");
+        vm.prank(alice);
+        registry.verifyBio();
+
+        vm.prank(alice);
+        vm.expectRevert(CreatorRegistry.AlreadyVerified.selector);
+        registry.verifyBio();
+    }
+
+    function test_ReRegisterResetsVerification() public {
+        vm.prank(alice);
+        registry.register("@alice", "https://twitter.com/alice");
+        vm.prank(alice);
+        registry.verifyBio();
+        assertEq(registry.getVerificationLevel(alice), 1);
+
+        // Re-register resets level to 0
+        vm.prank(alice);
+        registry.register("@alice", "https://twitter.com/alice_new");
+        assertEq(registry.getVerificationLevel(alice), 0);
+    }
+
+    function test_GetVerificationLevel_Unregistered() public view {
+        assertEq(registry.getVerificationLevel(alice), 0);
     }
 }

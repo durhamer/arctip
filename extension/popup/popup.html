@@ -39,6 +39,12 @@
         <label for="input-creator">Creator Address or Handle</label>
         <input id="input-creator" type="text" placeholder="0x… or @handle" autocomplete="off" />
       </div>
+
+      <!-- Unverified creator warning -->
+      <div id="creator-warning" class="warning-banner hidden">
+        ⚠️ This creator is not bio-verified. Anyone can register any handle. Tip with caution.
+      </div>
+
       <div class="field">
         <label for="input-amount">Amount (USDC)</label>
         <div class="amount-row">
@@ -76,21 +82,80 @@
       <button id="nav-register" class="nav-btn">Register</button>
     </footer>
 
-    <!-- Register section -->
+    <!-- Register section — multi-step bio verification flow -->
     <section id="section-register" class="hidden">
-      <h2 class="section-title">Register as Creator</h2>
-      <div class="field">
-        <label for="reg-handle">Handle</label>
-        <input id="reg-handle" type="text" placeholder="@yourhandle" />
+      <h2 class="section-title" id="reg-section-title">Register as Creator</h2>
+
+      <!-- Already registered -->
+      <div id="reg-step-registered" class="hidden">
+        <div class="registered-badge">✅ You're registered as a creator</div>
+        <div class="reg-info">
+          <div class="reg-info-row">
+            <span class="label">Handle</span>
+            <span id="reg-info-handle" class="mono"></span>
+          </div>
+          <div class="reg-info-row">
+            <span class="label">Profile</span>
+            <a id="reg-info-url" class="reg-link" target="_blank" rel="noopener noreferrer"></a>
+          </div>
+          <div class="reg-info-row">
+            <span class="label">Verification</span>
+            <span id="reg-info-level"></span>
+          </div>
+        </div>
+        <button id="btn-unregister" class="btn btn--danger btn--full">Unregister</button>
       </div>
-      <div class="field">
-        <label for="reg-url">Profile URL</label>
-        <input id="reg-url" type="url" placeholder="https://twitter.com/you" />
+
+      <!-- Step 1: Enter handle, generate code -->
+      <div id="reg-step-1">
+        <div class="field">
+          <label for="reg-handle">Twitter Handle</label>
+          <input id="reg-handle" type="text" placeholder="@yourhandle" autocomplete="off" />
+        </div>
+        <p class="hint" style="margin-bottom:10px;">
+          We'll generate a verification code for you to paste in your Twitter bio.
+        </p>
+        <button id="btn-gen-code" class="btn btn--primary btn--full">Generate Verification Code →</button>
       </div>
-      <button id="btn-register" class="btn btn--primary btn--full">Register</button>
+
+      <!-- Step 2: Show code, wait for bio update -->
+      <div id="reg-step-2" class="hidden">
+        <p class="step-label">Step 1 of 2 — Update your Twitter bio</p>
+        <p class="hint" style="margin-bottom:8px;">
+          Copy the code below and paste it anywhere in your
+          <strong style="color:var(--text)">Twitter / X bio</strong>, then save your profile
+          and click <strong style="color:var(--text)">Verify Bio</strong>.
+        </p>
+        <div class="verify-code-box">
+          <span id="verify-code-display" class="mono"></span>
+          <button id="btn-copy-code" class="btn btn--ghost btn--sm">Copy</button>
+        </div>
+        <div id="verify-result" class="hidden" style="margin:8px 0;font-size:12px;"></div>
+        <button id="btn-check-bio" class="btn btn--primary btn--full" style="margin-top:8px;">
+          ✓ Verify Bio
+        </button>
+        <button id="btn-back-step1" class="btn btn--ghost btn--full" style="margin-top:6px;">
+          ← Back
+        </button>
+      </div>
+
+      <!-- Step 3: Bio verified, complete registration -->
+      <div id="reg-step-3" class="hidden">
+        <p class="step-label">Step 2 of 2 — Register on-chain</p>
+        <div class="verify-success-badge">✅ Bio verified!</div>
+        <div class="field">
+          <label>Handle (confirmed)</label>
+          <input id="reg-handle-display" type="text" readonly class="input--readonly" />
+        </div>
+        <div class="field">
+          <label for="reg-url">Profile URL</label>
+          <input id="reg-url" type="url" placeholder="https://twitter.com/you" />
+        </div>
+        <button id="btn-register" class="btn btn--primary btn--full">Register &amp; Verify on Chain</button>
+      </div>
     </section>
   </div>
 
-  <script src="popup.js" type="module"></script>
+  <script src="popup.js"></script>
 </body>
 </html>

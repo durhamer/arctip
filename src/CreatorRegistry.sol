@@ -2,13 +2,18 @@
 pragma solidity ^0.8.30;
 
 /// @title CreatorRegistry
-/// @notice Allows content creators to register their on-chain identity with a handle and URL
+/// @notice Allows content creators to register their on-chain identity with a handle and URL.
+///         Supports a progressive verification system:
+///           0 = unverified (default on register)
+///           1 = bio-verified (Twitter bio challenge confirmed by frontend)
+///           2 = oauth-verified (reserved for future OAuth flow)
 contract CreatorRegistry {
     struct Creator {
-        string handle;   // e.g. "@alice"
-        string url;      // e.g. "https://twitter.com/alice"
+        string handle;           // e.g. "@alice"
+        string url;              // e.g. "https://twitter.com/alice"
         bool registered;
         uint256 registeredAt;
+        uint8 verificationLevel; // 0=unverified, 1=bio, 2=oauth
     }
 
     // address -> Creator info
@@ -19,18 +24,21 @@ contract CreatorRegistry {
 
     event CreatorRegistered(address indexed creator, string handle, string url);
     event CreatorUpdated(address indexed creator, string handle, string url);
+    event CreatorVerified(address indexed creator, uint8 level);
 
     error HandleTaken(string handle);
     error NotRegistered();
     error EmptyHandle();
     error EmptyUrl();
+    error AlreadyVerified();
 
     modifier onlyRegistered() {
         if (!creators[msg.sender].registered) revert NotRegistered();
         _;
     }
 
-    /// @notice Register as a creator
+    /// @notice Register as a creator. Always starts at verificationLevel = 0 (unverified).
+    ///         Call verifyBio() afterwards to upgrade to level 1.
     /// @param handle  Short username, e.g. "@alice"
     /// @param url     Profile URL pointing to the creator's page
     function register(string calldata handle, string calldata url) external {
@@ -51,7 +59,8 @@ contract CreatorRegistry {
             handle: handle,
             url: url,
             registered: true,
-            registeredAt: block.timestamp
+            registeredAt: block.timestamp,
+            verificationLevel: 0
         });
         handleToAddress[key] = msg.sender;
 
@@ -60,6 +69,15 @@ contract CreatorRegistry {
         } else {
             emit CreatorRegistered(msg.sender, handle, url);
         }
+    }
+
+    /// @notice Upgrade caller's verification level to 1 (bio-verified).
+    ///         The frontend must confirm the bio challenge code is present before calling this.
+    ///         Designed to be extensible: level 2 (OAuth) can be added later via a separate function.
+    function verifyBio() external onlyRegistered {
+        if (creators[msg.sender].verificationLevel >= 1) revert AlreadyVerified();
+        creators[msg.sender].verificationLevel = 1;
+        emit CreatorVerified(msg.sender, 1);
     }
 
     /// @notice Unregister and remove the creator record
@@ -81,6 +99,11 @@ contract CreatorRegistry {
 
     function getAddressByHandle(string calldata handle) external view returns (address) {
         return handleToAddress[_handleKey(handle)];
+    }
+
+    /// @notice Returns the verification level for an address (0=unverified, 1=bio, 2=oauth)
+    function getVerificationLevel(address addr) external view returns (uint8) {
+        return creators[addr].verificationLevel;
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────

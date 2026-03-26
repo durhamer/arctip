@@ -325,7 +325,7 @@ const USDC_DECIMALS = 6;
 const ARCSCAN = "https://testnet.arcscan.app";
 
 let walletAddress = null;
-let contracts = { tipjar: "", registry: "" };
+let contracts = { tipjar: "0x078aF8b465a8be934E3c48e99a634A875B71e369", registry: "0x6E5f2F17C239e883113712EeC563EF2DE675752D" };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -422,8 +422,8 @@ function hideStatus(elId) {
 function loadConfig() {
   try {
     const saved = JSON.parse(localStorage.getItem("arctip_contracts") || "{}");
-    contracts.tipjar = saved.tipjar || "";
-    contracts.registry = saved.registry || "";
+    contracts.tipjar = saved.tipjar || "0x078aF8b465a8be934E3c48e99a634A875B71e369";
+    contracts.registry = saved.registry || "0x6E5f2F17C239e883113712EeC563EF2DE675752D";
     $("cfg-tipjar").value = contracts.tipjar;
     $("cfg-registry").value = contracts.registry;
   } catch (_) {}

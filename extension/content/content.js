@@ -146,8 +146,12 @@
           <button id="arctip-close" style="background:none;border:none;color:#8890a8;
                   font-size:20px;cursor:pointer;padding:0;">×</button>
         </div>
-        <div style="color:#8890a8;font-size:12px;margin-bottom:16px;">
+        <div style="color:#8890a8;font-size:12px;margin-bottom:10px;">
           Tipping <strong style="color:#e8eaf0;">${handle}</strong> on ${platform}
+        </div>
+        <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);
+                    border-radius:6px;padding:7px 10px;font-size:11px;color:#f59e0b;margin-bottom:12px;">
+          ⚠️ Verification status will be shown in the ArcTip popup before the tip is sent.
         </div>
         <div style="margin-bottom:12px;">
           <label style="display:block;font-size:11px;color:#8890a8;margin-bottom:4px;">Amount (USDC)</label>
