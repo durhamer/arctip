@@ -25,15 +25,16 @@ function normalizeHandle(input) {
 // ── Selectors (tiny keccak lookup) ────────────────────────────────────────
 
 const SELECTORS = {
-  "balanceOf(address)":          "0x70a08231",
-  "approve(address,uint256)":    "0x095ea7b3",
-  "isRegistered(address)":       "0xc3c5a547",
-  "getAddressByHandle(string)":  "0xb589c169",
-  "register(string,string)":     "0x3ffbd47f",
-  "tip(address,uint256,string)": "0xb008c34e",
-  "previewTip(uint256)":         "0xd3cafef9",
-  "feeBps()":                    "0x24a9d853",
-  "verifyBio()":                 "0x11d650cc",
+  "balanceOf(address)":            "0x70a08231",
+  "allowance(address,address)":    "0xdd62ed3e",
+  "approve(address,uint256)":      "0x095ea7b3",
+  "isRegistered(address)":         "0xc3c5a547",
+  "getAddressByHandle(string)":    "0xb589c169",
+  "register(string,string)":       "0x3ffbd47f",
+  "tip(address,uint256,string)":   "0xb008c34e",
+  "previewTip(uint256)":           "0xd3cafef9",
+  "feeBps()":                      "0x24a9d853",
+  "verifyBio()":                   "0x11d650cc",
   "getVerificationLevel(address)": "0x20e21535",
   "getCreator(address)":           "0xa0210309",
   "unregister()":                  "0xe79a198f",
@@ -144,6 +145,10 @@ const ui = {
   usdcBalance: $("usdc-balance"),
   btnConnect: $("btn-connect"),
   sectionTip: $("section-tip"),
+  sectionTipSuccess: $("section-tip-success"),
+  tipSuccessDetail: $("tip-success-detail"),
+  btnArcscan: $("btn-arcscan"),
+  btnSendAnother: $("btn-send-another"),
   sectionRegister: $("section-register"),
   inputCreator: $("input-creator"),
   inputAmount: $("input-amount"),
@@ -521,17 +526,25 @@ async function sendTip() {
 
     const amount = parseUsdc(amountStr);
 
-    // Step 1: approve
-    showStatus("Approving USDC… (check MetaMask)");
-    const approveTx = await ethRequest("eth_sendTransaction", [
-      {
-        from: walletAddress,
-        to: USDC_ADDRESS,
-        data: encodeCall("approve(address,uint256)", [contractAddresses.tipjar, amount]),
-      },
+    // Step 1: approve max uint256 once — skip if allowance already covers the tip
+    const MAX_UINT256 = (1n << 256n) - 1n;
+    const allowanceRaw = await ethCall(USDC_ADDRESS, "allowance(address,address)", [
+      walletAddress,
+      contractAddresses.tipjar,
     ]);
-    showStatus(`Approve tx: ${approveTx.slice(0, 10)}… waiting`);
-    await waitForTx(approveTx);
+    const currentAllowance = BigInt(allowanceRaw);
+    if (currentAllowance < amount) {
+      showStatus("Approving USDC… (check MetaMask)");
+      const approveTx = await ethRequest("eth_sendTransaction", [
+        {
+          from: walletAddress,
+          to: USDC_ADDRESS,
+          data: encodeCall("approve(address,uint256)", [contractAddresses.tipjar, MAX_UINT256]),
+        },
+      ]);
+      showStatus(`Approve tx: ${approveTx.slice(0, 10)}… waiting`);
+      await waitForTx(approveTx);
+    }
 
     // Step 2: tip
     showStatus("Sending tip… (check MetaMask)");
@@ -542,13 +555,22 @@ async function sendTip() {
         data: encodeCall("tip(address,uint256,string)", [creatorAddr, amount, message]),
       },
     ]);
-    await waitForTx(tipTx);
 
-    showStatus(`Tip sent! Tx: ${tipTx}`, "success");
-    await refreshBalance();
+    // Tx is in the mempool — show success immediately; don't wait for bridge-dependent confirmation
+    hideStatus();
+    ui.sectionTip.classList.add("hidden");
+    ui.tipSuccessDetail.textContent = `${amountStr} USDC → ${creatorInput}`;
+    ui.btnArcscan.href = `https://testnet.arcscan.app/tx/${tipTx}`;
+    ui.sectionTipSuccess.classList.remove("hidden");
+
+    // Reset form for next use
     ui.inputAmount.value = "";
     ui.inputMessage.value = "";
     ui.tipPreview.classList.add("hidden");
+    ui.creatorWarning.classList.add("hidden");
+
+    // Silently wait for confirmation and refresh balance (bridge may disconnect — that's OK)
+    waitForTx(tipTx).then(() => refreshBalance()).catch(() => {});
   } catch (err) {
     showStatus(err.message || "Transaction failed", "error");
   } finally {
@@ -723,6 +745,9 @@ function showSection(name) {
   const sections = { tip: ui.sectionTip, register: ui.sectionRegister };
   const navBtns = { tip: ui.navTip, register: ui.navRegister };
 
+  // Always hide the success overlay when switching sections
+  ui.sectionTipSuccess.classList.add("hidden");
+
   Object.entries(sections).forEach(([k, el]) => {
     if (!walletAddress && k !== "tip") return;
     el.classList.toggle("hidden", k !== name);
@@ -751,6 +776,7 @@ function setupEventListeners() {
 
   ui.navTip.addEventListener("click", () => showSection("tip"));
   ui.navRegister.addEventListener("click", () => showSection("register"));
+  ui.btnSendAnother.addEventListener("click", () => showSection("tip"));
 
   // Register multi-step
   ui.btnGenCode.addEventListener("click", startVerification);
